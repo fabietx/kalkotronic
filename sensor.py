@@ -1,149 +1,121 @@
 from datetime import timedelta
 import logging
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
+
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    CoordinatorEntity,
+)
+from homeassistant.helpers.entity import DeviceInfo
+
 from .client import KalkotronicClient
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER, UPDATE_FAST, UPDATE_DAILY
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL_DAY = timedelta(hours=24)
-SCAN_INTERVAL_FAST = timedelta(minutes=2)
+EXCLUDED_SENSORS = {"serial"}
+
+SENSOR_META = {
+    "temperature": {
+        "device_class": SensorDeviceClass.TEMPERATURE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "°C",
+    },
+    "efficiency": {
+        "device_class": None,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "%",
+    },
+    "working_days": {
+        "state_class": SensorStateClass.TOTAL,
+        "unit": "days",
+    },
+    "maintenance_expiration": {
+        "state_class": SensorStateClass.TOTAL,
+        "unit": "days",
+    },
+    "maintenance_delay": {
+        "state_class": SensorStateClass.TOTAL,
+        "unit": "days",
+    },
+}
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     host = entry.data["host"]
     client = KalkotronicClient(host)
 
-    # Coordinatori
+    device_info_data = await client.fetch_device_info()
+
     coordinator_daily = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name="Kalkotronic Daily",
-        update_method=_fetch_daily_data(client),
-        update_interval=SCAN_INTERVAL_DAY,
+        update_method=client.fetch_daily_data,
+        update_interval=timedelta(seconds=UPDATE_DAILY),
     )
-    await coordinator_daily.async_config_entry_first_refresh()
 
     coordinator_fast = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name="Kalkotronic Fast",
-        update_method=_fetch_fast_data(client),
-        update_interval=SCAN_INTERVAL_FAST,
+        update_method=client.fetch_fast_data,
+        update_interval=timedelta(seconds=UPDATE_FAST),
     )
+
+    await coordinator_daily.async_config_entry_first_refresh()
     await coordinator_fast.async_config_entry_first_refresh()
 
-    # Legge info statiche da TipoImpianto e le mette nel device info
-    tipoimpianto_data = await client.fetch_tipoimpianto()
-    device_info_extra = {
-        "model": tipoimpianto_data.get("model"),
-        "sw_version": tipoimpianto_data.get("sw_version"),
-        "hw_version": tipoimpianto_data.get("serial"),
-    }
-
-    # Creazione sensori
     entities = []
 
-    # Stato online (sempre)
-    entities.append(
-        KalkotronicSensor(
-            coordinator_daily,
-            host,
-            "Stato",
-            "online",
-            "mdi:checkbox-marked-circle",
-            "stato",
-            device_info_extra,
+    for key in coordinator_daily.data:
+        if key not in EXCLUDED_SENSORS:
+            entities.append(
+                KalkotronicSensor(
+                    coordinator_daily, key, host, device_info_data
+                )
+            )
+
+    for key in coordinator_fast.data:
+        entities.append(
+            KalkotronicSensor(
+                coordinator_fast, key, host, device_info_data
+            )
         )
-    )
-
-    # Sensori diagnostici dal coordinatore giornaliero
-    daily_keys = [
-        ("status_message", "Messaggio Stato", "mdi:information"),
-        ("working_days", "Giorni Lavorati", "mdi:calendar-check"),
-        ("maintenance_expiration", "Giorni alla Revisione", "mdi:calendar-clock"),
-        ("maintenance_delay", "Ritardo Revisione", "mdi:calendar-remove"),
-        ("frequency", "Frequenza Lavoro", "mdi:sine-wave"),
-        ("temp_alarms", "Allarmi Temperatura", "mdi:alert-circle"),
-        ("fuse_alarms", "Allarmi Fusibile", "mdi:alert-octagon"),
-        ("wifi_version", "Versione WiFi", "mdi:wifi"),
-    ]
-
-    for key, name, icon in daily_keys:
-        entities.append(KalkotronicSensor(coordinator_daily, host, name, None, icon, key))
-
-    # Sensori aggiornamento rapido
-    fast_keys = [
-        ("temperature", "Temperatura Impianto", "mdi:thermometer"),
-        ("efficiency", "Efficienza Stimata", "mdi:percent"),
-    ]
-    for key, name, icon in fast_keys:
-        entities.append(KalkotronicSensor(coordinator_fast, host, name, None, icon, key))
 
     async_add_entities(entities)
 
 
-def _fetch_daily_data(client):
-    async def inner():
-        data = await client.fetch_caricadati()
-        tipoimpianto_data = await client.fetch_tipoimpianto()
-        # aggiunge wifi_version dalla pagina TipoImpianto
-        data["wifi_version"] = tipoimpianto_data.get("wifi_version")
-        return data
-
-    return inner
-
-
-def _fetch_fast_data(client):
-    async def inner():
-        data = await client.fetch_caricadati()
-        # ritorna solo temperature ed efficiency
-        return {
-            "temperature": data.get("temperature"),
-            "efficiency": data.get("efficiency"),
-        }
-
-    return inner
-
-
 class KalkotronicSensor(CoordinatorEntity, SensorEntity):
-    """Sensore collegato al device con unique_id e device_info."""
-
-    def __init__(self, coordinator, device_identifier, name, value, icon, unique_suffix, info=None):
+    def __init__(self, coordinator, key, host, device_data):
         super().__init__(coordinator)
-        self._device_identifier = device_identifier
-        self._attr_name = name
-        self._attr_icon = icon
-        self._attr_native_value = value
-        self._unique_suffix = unique_suffix
-        self._device_info_extra = info or {}
+        self._key = key
+        self._host = host
+        self._device_data = device_data
 
-    @property
-    def unique_id(self):
-        return f"{self._device_identifier}_{self._unique_suffix}"
+        self._attr_name = key.replace("_", " ").title()
+        self._attr_unique_id = f"{host}_{key}"
 
-    @property
-    def device_info(self):
-        info = {
-            "identifiers": {(DOMAIN, self._device_identifier)},
-            "name": f"Kalkotronic {self._device_identifier}",
-            "manufacturer": "Kalko Tronic",
-        }
-        if self._device_info_extra:
-            info.update(self._device_info_extra)
-        return info
+        meta = SENSOR_META.get(key, {})
+        self._attr_device_class = meta.get("device_class")
+        self._attr_state_class = meta.get("state_class")
+        self._attr_native_unit_of_measurement = meta.get("unit")
 
     @property
     def native_value(self):
-        data = self.coordinator.data or {}
-        if self._unique_suffix == "stato":
-            return "online"
-        val = data.get(self._unique_suffix)
-        if self._unique_suffix == "temperature" and val is not None:
-            return f"{val}°C"
-        return val
+        return self.coordinator.data.get(self._key)
 
     @property
-    def available(self):
-        return self.coordinator.last_update_success
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._host)},
+            name=f"Kalkotronic {self._host}",
+            manufacturer=MANUFACTURER,
+            model=self._device_data.get("model"),
+            serial_number=self._device_data.get("serial"),
+            sw_version=self._device_data.get("sw_version"),
+        )
