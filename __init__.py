@@ -1,7 +1,16 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from . import services
+from .const import DOMAIN
+
 PLATFORMS = ["sensor", "button"]
+
+async def async_setup(hass: HomeAssistant, config: dict):
+    """Setup iniziale dell'integrazione."""
+    await services.async_setup_services(hass)
+    return True
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Setup via Config Flow."""

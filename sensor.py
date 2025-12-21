@@ -24,23 +24,37 @@ SENSOR_META = {
         "device_class": SensorDeviceClass.TEMPERATURE,
         "state_class": SensorStateClass.MEASUREMENT,
         "unit": "°C",
+        "icon": "mdi:thermometer",
     },
     "efficiency": {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
         "unit": "%",
+        "icon": "mdi:percent",
     },
     "working_days": {
         "state_class": SensorStateClass.TOTAL,
         "unit": "days",
+        "icon": "mdi:calendar-clock",
     },
     "maintenance_expiration": {
         "state_class": SensorStateClass.TOTAL,
         "unit": "days",
+        "icon": "mdi:calendar-alert",
     },
     "maintenance_delay": {
         "state_class": SensorStateClass.TOTAL,
         "unit": "days",
+        "icon": "mdi:calendar-remove",
+    },
+    "frequency": {
+        "icon": "mdi:sine-wave",
+    },
+    "temp_alarms": {
+        "icon": "mdi:alert",
+    },
+    "fuse_alarms": {
+        "icon": "mdi:flash-alert",
     },
 }
 
@@ -104,10 +118,15 @@ class KalkotronicSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_class = meta.get("device_class")
         self._attr_state_class = meta.get("state_class")
         self._attr_native_unit_of_measurement = meta.get("unit")
+        self._icon = meta.get("icon")
 
     @property
     def native_value(self):
         return self.coordinator.data.get(self._key)
+
+    @property
+    def icon(self):
+        return self._icon
 
     @property
     def device_info(self):

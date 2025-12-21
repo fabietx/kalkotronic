@@ -40,9 +40,7 @@ class KalkotronicClient:
 
         return {
             "temperature": find(r"Temperatura impianto:\s*([\d.]+)"),
-            "efficiency": find(
-                r"Efficienza stimata:.*?<font[^>]*>\s*(\d+)\s*</font>"
-            ),
+            "efficiency": find(r"Efficienza stimata:.*?<font[^>]*>\s*(\d+)\s*</font>"),
         }
 
     # ---------- PAGINA TipoImpianto ----------
