@@ -1,3 +1,5 @@
+# Kalko Tronic Integration
+
 I wanted to create a custom integration for Home Assistant to monitor a Kalkotronic water softener.
 This device is manufactured by a leading Italian company in water treatment solutions.
 
