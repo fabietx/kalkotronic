@@ -47,9 +47,6 @@ SENSOR_META = {
         "unit": "days",
         "icon": "mdi:calendar-remove",
     },
-    "frequency": {
-        "icon": "mdi:sine-wave",
-    },
     "temp_alarms": {
         "icon": "mdi:alert",
     },
@@ -137,4 +134,5 @@ class KalkotronicSensor(CoordinatorEntity, SensorEntity):
             model=self._device_data.get("model"),
             serial_number=self._device_data.get("serial"),
             sw_version=self._device_data.get("sw_version"),
+            wifi_version=self._device_data.get("wifi_version"),
         )

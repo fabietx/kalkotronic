@@ -26,7 +26,6 @@ class KalkotronicClient:
             "working_days": find(r"totale di\s+(\d+)\s+giorni"),
             "maintenance_expiration": find(r"revisione:\s*(\d+)"),
             "maintenance_delay": find(r"ritardo revisione fasce:\s*(\d+)"),
-            "frequency": find(r"Frequenza di lavoro:\s*([^<]+)"),
             "temp_alarms": find(r"Allarmi Temperatura:\s*(\d+)"),
             "fuse_alarms": find(r"Allarmi Fusibile:\s*(\d+)"),
         }
@@ -40,7 +39,7 @@ class KalkotronicClient:
 
         return {
             "temperature": find(r"Temperatura impianto:\s*([\d.]+)"),
-            "efficiency": find(r"Efficienza stimata:.*?<font[^>]*>\s*(\d+)\s*</font>"),
+            "efficiency": find(r"Efficienza stimata:[^0-9]*(\d+)"),
         }
 
     # ---------- PAGINA TipoImpianto ----------
@@ -56,5 +55,5 @@ class KalkotronicClient:
             "model": find(r"Modello:\s*([^<]+)"),
             "serial": find(r"Codice Seriale:\s*([^<]+)"),
             "sw_version": find(r"V\.Software Scheda:\s*([^<]+)"),
-            "wifi_version": find(r"KT WiFi V\s*([^<]+)"),
+            "wifi_version": find(r"Versione\s*KT\s*WiFi\s*V\s*([0-9.]+)"),
         }
