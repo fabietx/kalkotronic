@@ -13,14 +13,14 @@ class KalkotronicClient:
                 return await resp.text()
 
 
-    async def fetch_status(self) -> dict:
+        async def fetch_fast_data(self) -> dict:
         html = await self._get_page("Home")
 
         def find(pattern):
             match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
             return match.group(1).strip() if match else None
 
-        color = find(r'border-radius:\s*50%.*?background-color:\s*(#[0-9A-Fa-f]{6})')
+        color = find(r'background-color:\s*(#[0-9A-Fa-f]{6});\s*border-radius:\s*50%')
         # Se non trova nulla, considera problema presente per sicurezza
         is_ok = color.upper() == "#00FF00" if color else False
 
@@ -74,3 +74,4 @@ class KalkotronicClient:
             "sw_version": find(r"V\.Software Scheda:\s*([^<]+)"),
             "wifi_version": find(r"Versione\s*KT\s*WiFi\s*V\s*([0-9.]+)"),
         }
+        
