@@ -12,6 +12,23 @@ class KalkotronicClient:
                 resp.raise_for_status()
                 return await resp.text()
 
+
+    async def fetch_status(self) -> dict:
+        html = await self._get_page("Home")
+
+        def find(pattern):
+            match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+            return match.group(1).strip() if match else None
+
+        color = find(r'border-radius:\s*50%.*?background-color:\s*(#[0-9A-Fa-f]{6})')
+        # Se non trova nulla, considera problema presente per sicurezza
+        is_ok = color.upper() == "#00FF00" if color else False
+
+        return {
+            "system_problem": not is_ok,
+            "system_status_color": color,
+        }
+
     # ---------- PAGINA CaricaDatiImp ----------
 
     async def fetch_daily_data(self) -> dict:
@@ -38,8 +55,8 @@ class KalkotronicClient:
             return match.group(1).strip() if match else None
 
         return {
-            "temperature": find(r"Temperatura impianto:\s*([\d.]+)"),
-            "efficiency": find(r"Efficienza stimata:[^0-9]*(\d+)"),
+            "temperature": find(r"Temperatura impianto:\s*(?:<[^>]+>\s*)*([\d.]+)"),
+            "efficiency": find(r"Efficienza stimata:\s*(?:<[^>]+>\s*)*(\d+)"),
         }
 
     # ---------- PAGINA TipoImpianto ----------

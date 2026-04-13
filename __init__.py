@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from . import services
 from .const import DOMAIN
 
-PLATFORMS = ["sensor", "button"]
+PLATFORMS = ["sensor", "button", "binary_sensor"]
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Setup iniziale dell'integrazione."""
