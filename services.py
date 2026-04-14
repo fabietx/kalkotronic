@@ -13,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_services(hass: HomeAssistant):
+    """Registra i servizi dell'integrazione Kalkotronic."""
 
     async def handle_update_datetime(call: ServiceCall):
         entries: list[ConfigEntry] = hass.config_entries.async_entries(DOMAIN)
@@ -23,11 +24,12 @@ async def async_setup_services(hass: HomeAssistant):
 
         now = datetime.now()
         date_str = now.strftime("%d.%m.%Y %H:%M")
-        date_encoded = quote_plus(date_str)  # → 13.04.2026+21%3A00
+        # quote_plus produce: 13.04.2026+21%3A00
+        # encoded=True impedisce ad aiohttp di ri-codificare %3A in %253A
+        date_encoded = quote_plus(date_str)
 
         for entry in entries:
             host = entry.data["host"]
-            # encoded=True impedisce ad aiohttp di ri-codificare %3A in %253A
             url = URL(f"http://{host}/?Mia_Data_ora={date_encoded}", encoded=True)
 
             _LOGGER.debug("Aggiornamento orario Kalkotronic [%s]: %s", host, url)

@@ -6,124 +6,111 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    CoordinatorEntity,
-)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
-from .client import KalkotronicClient
-from .const import DOMAIN, MANUFACTURER, UPDATE_FAST, UPDATE_DAILY
+from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
-EXCLUDED_SENSORS = {"serial"}
+# Chiavi da non esporre come sensori (usate solo per device_info)
+EXCLUDED_FROM_SENSORS = {"serial", "model", "sw_version", "wifi_version"}
 
+# Metadati per ogni sensore: unità, device_class, state_class, icona
 SENSOR_META = {
     "temperature": {
         "device_class": SensorDeviceClass.TEMPERATURE,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "unit": "°C",
-        "icon": "mdi:thermometer",
+        "state_class":  SensorStateClass.MEASUREMENT,
+        "unit":         "°C",
+        "icon":         "mdi:thermometer",
     },
     "efficiency": {
         "device_class": None,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "unit": "%",
-        "icon": "mdi:percent",
+        "state_class":  SensorStateClass.MEASUREMENT,
+        "unit":         "%",
+        "icon":         "mdi:percent",
     },
     "working_days": {
-        "state_class": SensorStateClass.TOTAL,
-        "unit": "days",
-        "icon": "mdi:calendar-clock",
+        "device_class": None,
+        "state_class":  SensorStateClass.TOTAL_INCREASING,
+        "unit":         "giorni",
+        "icon":         "mdi:calendar-clock",
     },
-    "maintenance_expiration": {
-        "state_class": SensorStateClass.TOTAL,
-        "unit": "days",
-        "icon": "mdi:calendar-alert",
+    "maintenance_days_left": {
+        "device_class": None,
+        "state_class":  SensorStateClass.MEASUREMENT,
+        "unit":         "giorni",
+        "icon":         "mdi:calendar-alert",
     },
     "maintenance_delay": {
-        "state_class": SensorStateClass.TOTAL,
-        "unit": "days",
-        "icon": "mdi:calendar-remove",
+        "device_class": None,
+        "state_class":  SensorStateClass.MEASUREMENT,
+        "unit":         "giorni",
+        "icon":         "mdi:calendar-remove",
     },
     "temp_alarms": {
-        "icon": "mdi:alert",
+        "device_class": None,
+        "state_class":  SensorStateClass.TOTAL_INCREASING,
+        "unit":         None,
+        "icon":         "mdi:thermometer-alert",
     },
     "fuse_alarms": {
-        "icon": "mdi:flash-alert",
+        "device_class": None,
+        "state_class":  SensorStateClass.TOTAL_INCREASING,
+        "unit":         None,
+        "icon":         "mdi:flash-alert",
+    },
+    "status_message": {
+        "device_class": None,
+        "state_class":  None,
+        "unit":         None,
+        "icon":         "mdi:information-outline",
     },
 }
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    coordinators = hass.data[DOMAIN][entry.entry_id]
     host = entry.data["host"]
-    client = KalkotronicClient(host)
-
-    device_info_data = await client.fetch_device_info()
-
-    coordinator_daily = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="Kalkotronic Daily",
-        update_method=client.fetch_daily_data,
-        update_interval=timedelta(seconds=UPDATE_DAILY),
-    )
-
-    coordinator_fast = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="Kalkotronic Fast",
-        update_method=client.fetch_fast_data,
-        update_interval=timedelta(seconds=UPDATE_FAST),
-    )
-
-    await coordinator_daily.async_config_entry_first_refresh()
-    await coordinator_fast.async_config_entry_first_refresh()
-
+    daily_data = coordinators.daily.data
     entities = []
 
-    for key in coordinator_daily.data:
-        if key not in EXCLUDED_SENSORS:
+    # Sensori aggiornati ogni 2 minuti (coordinator fast)
+    for key in coordinators.fast.data:
+        if key not in EXCLUDED_FROM_SENSORS:
             entities.append(
-                KalkotronicSensor(
-                    coordinator_daily, key, host, device_info_data
-                )
+                KalkotronicSensor(coordinators.fast, key, host, daily_data)
             )
-
-    for key in coordinator_fast.data:
-        entities.append(
-            KalkotronicSensor(
-                coordinator_fast, key, host, device_info_data
-            )
-        )
 
     async_add_entities(entities)
 
 
 class KalkotronicSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, key, host, device_data):
+
+    def __init__(self, coordinator, key, host, daily_data):
         super().__init__(coordinator)
         self._key = key
         self._host = host
-        self._device_data = device_data
-
-        self._attr_name = key.replace("_", " ").title()
-        self._attr_unique_id = f"{host}_{key}"
+        self._daily_data = daily_data
 
         meta = SENSOR_META.get(key, {})
-        self._attr_device_class = meta.get("device_class")
-        self._attr_state_class = meta.get("state_class")
+        self._attr_name                     = key.replace("_", " ").title()
+        self._attr_unique_id                = f"{host}_{key}"
+        self._attr_device_class             = meta.get("device_class")
+        self._attr_state_class              = meta.get("state_class")
         self._attr_native_unit_of_measurement = meta.get("unit")
-        self._icon = meta.get("icon")
+        self._attr_icon                     = meta.get("icon")
 
     @property
     def native_value(self):
-        return self.coordinator.data.get(self._key)
-
-    @property
-    def icon(self):
-        return self._icon
+        value = self.coordinator.data.get(self._key)
+        # Converti in numero i valori numerici per HA
+        if value is not None and self._attr_native_unit_of_measurement is not None:
+            try:
+                return float(value) if "." in str(value) else int(value)
+            except (ValueError, TypeError):
+                pass
+        return value
 
     @property
     def device_info(self):
@@ -131,8 +118,7 @@ class KalkotronicSensor(CoordinatorEntity, SensorEntity):
             identifiers={(DOMAIN, self._host)},
             name=f"Kalkotronic {self._host}",
             manufacturer=MANUFACTURER,
-            model=self._device_data.get("model"),
-            serial_number=self._device_data.get("serial"),
-            sw_version=self._device_data.get("sw_version"),
-            wifi_version=self._device_data.get("wifi_version"),
+            model=self._daily_data.get("model"),
+            serial_number=self._daily_data.get("serial"),
+            sw_version=self._daily_data.get("sw_version"),
         )

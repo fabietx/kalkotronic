@@ -1,0 +1,8 @@
+update_datetime:
+  name: Sincronizza data e ora
+  description: >
+    Aggiorna la data e l'ora sul dispositivo Kalkotronic.
+    Utile poiché il dispositivo non supporta NTP.
+    L'host viene letto automaticamente dalla configurazione,
+    non è necessario specificare parametri.
+  fields: {}
