@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configura Kalkotronic",
+        "data": {
+          "host": "Indirizzo IP"
+        }
+      }
+    },
+    "error": {
+      "invalid_ip": "Indirizzo IP non valido. Inserisci un IPv4 nel formato 192.168.1.x",
+      "cannot_connect": "Impossibile connettersi al dispositivo. Verifica che sia acceso e raggiungibile."
+    },
+    "abort": {
+      "already_configured": "Dispositivo già configurato."
+    }
+  }
+}

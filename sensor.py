@@ -66,6 +66,12 @@ SENSOR_META = {
         "unit":         None,
         "icon":         "mdi:information-outline",
     },
+    "energy": {
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class":  SensorStateClass.TOTAL_INCREASING,
+        "unit":         "kWh",
+        "icon":         "mdi:lightning-bolt",
+    },
 }
 
 
@@ -81,6 +87,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             entities.append(
                 KalkotronicSensor(coordinators.fast, key, host, daily_data)
             )
+
+    # Sensore energia
+    for key in coordinators.energy.data:
+        entities.append(
+            KalkotronicSensor(coordinators.energy, key, host, daily_data)
+        )
 
     async_add_entities(entities)
 

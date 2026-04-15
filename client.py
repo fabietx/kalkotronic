@@ -58,6 +58,11 @@ class KalkotronicClient:
         """
         html = await self._get_page("Home")
         return _parse_home_status(html)
+        
+    async def fetch_energy_data(self) -> dict:
+        """Pagina Consumielettrici — aggiornamento ogni 2 minuti."""
+        html = await self._get_page("Consumielettrici")
+        return _parse_energy_data(html)
 
 
 # ------------------------------------------------------------------
@@ -94,8 +99,23 @@ def _parse_daily_data(html: str) -> dict:
 
 def _parse_home_status(html: str) -> dict:
     color = _find(r'background-color:\s*(#[0-9A-Fa-f]{6});\s*border-radius:\s*50%', html)
-    is_ok = (color.upper() == "#00FF00") if color else False
+    
+    if color is None:
+        raise ValueError("Colore stato non trovato nell'HTML — risposta incompleta")
+    
+    is_ok = color.upper() == "#00FF00"
     return {
         "system_problem": not is_ok,
         "status_color":   color,
+    }
+
+
+def _parse_energy_data(html: str) -> dict:
+    raw = _find(r"Watt consumati dall'inizio del periodo sono:\s*([\d,]+)\s*Kwh", html)
+    if raw is None:
+        raise ValueError("Valore energia non trovato nell'HTML")
+    # Converti virgola decimale italiana in punto
+    value = float(raw.replace(",", "."))
+    return {
+        "energy_kwh": value,
     }

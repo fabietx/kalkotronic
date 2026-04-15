@@ -1,7 +1,7 @@
 {
   "domain": "kalkotronic",
   "name": "Kalkotronic",
-  "version": "0.1",
+  "version": "0.2",
   "documentation": "https://github.com/kalkotronic",
   "codeowners": ["@fabior87"],
   "requirements": ["beautifulsoup4", "aiohttp"],
