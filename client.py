@@ -19,17 +19,12 @@ class KalkotronicClient:
         """Esegue una GET e restituisce l'HTML grezzo."""
         url = f"http://{self._host}/?pin={pin}"
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                return await resp.text()
-
-    async def _get_home(self) -> str:
-        """Esegue una GET sulla home (nessun parametro pin)."""
-        url = f"http://{self._host}/"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                return await resp.text()
+            async with session.get(
+            url,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            resp.raise_for_status()
+            return await resp.text()
 
     # ------------------------------------------------------------------
     # Fetch dati — una chiamata HTTP per blocco
