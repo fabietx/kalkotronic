@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 
@@ -37,17 +36,14 @@ class KalkotronicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             host = user_input["host"].strip()
 
-            # Validazione formato IPv4
             if not IPV4_REGEX.match(host):
                 errors["host"] = "invalid_ip"
 
-            # Test connessione
             elif not await _test_connection(host):
                 errors["host"] = "cannot_connect"
 
             else:
-                # Evita duplicati
-                await self.async_set_unique_id(host)
+                self.async_set_unique_id(host)
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
