@@ -13,10 +13,20 @@ from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
-# Chiavi da non esporre come sensori (usate solo per device_info)
 EXCLUDED_FROM_SENSORS = {"serial", "model", "sw_version", "wifi_version"}
 
-# Metadati per ogni sensore: unità, device_class, state_class, icona
+SENSOR_NAMES = {
+    "temperature":           "Temperatura",
+    "efficiency":            "Efficienza",
+    "working_days":          "Giorni di lavoro",
+    "maintenance_days_left": "Giorni alla manutenzione",
+    "maintenance_delay":     "Ritardo manutenzione",
+    "temp_alarms":           "Allarmi temperatura",
+    "fuse_alarms":           "Allarmi fusibile",
+    "status_message":        "Messaggio di stato",
+    "energy":                "Energia consumata",
+}
+
 SENSOR_META = {
     "temperature": {
         "device_class": SensorDeviceClass.TEMPERATURE,
@@ -58,7 +68,7 @@ SENSOR_META = {
         "device_class": None,
         "state_class":  SensorStateClass.TOTAL_INCREASING,
         "unit":         None,
-        "icon":         "mdi:flash-alert",
+        "icon":         "mdi:fuse-alert",
     },
     "status_message": {
         "device_class": None,
@@ -81,14 +91,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
     daily_data = coordinators.daily.data
     entities = []
 
-    # Sensori aggiornati ogni 2 minuti (coordinator fast)
     for key in coordinators.fast.data:
         if key not in EXCLUDED_FROM_SENSORS:
             entities.append(
                 KalkotronicSensor(coordinators.fast, key, host, daily_data)
             )
 
-    # Sensore energia
     for key in coordinators.energy.data:
         entities.append(
             KalkotronicSensor(coordinators.energy, key, host, daily_data)
@@ -106,20 +114,22 @@ class KalkotronicSensor(CoordinatorEntity, SensorEntity):
         self._daily_data = daily_data
 
         meta = SENSOR_META.get(key, {})
-        self._attr_name                     = key.replace("_", " ").title()
-        self._attr_unique_id                = f"{host}_{key}"
-        self._attr_device_class             = meta.get("device_class")
-        self._attr_state_class              = meta.get("state_class")
+        self._attr_name                       = SENSOR_NAMES.get(key, key.replace("_", " ").title())
+        self._attr_unique_id                  = f"{host}_{key}"
+        self._attr_device_class               = meta.get("device_class")
+        self._attr_state_class                = meta.get("state_class")
         self._attr_native_unit_of_measurement = meta.get("unit")
-        self._attr_icon                     = meta.get("icon")
+        self._attr_icon                       = meta.get("icon")
 
     @property
     def native_value(self):
         value = self.coordinator.data.get(self._key)
-        # Converti in numero i valori numerici per HA
         if value is not None and self._attr_native_unit_of_measurement is not None:
             try:
-                return float(value) if "." in str(value) else int(value)
+                if "." in str(value):
+                    return round(float(value), 2)
+                else:
+                    return int(value)
             except (ValueError, TypeError):
                 pass
         return value
