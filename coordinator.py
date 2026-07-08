@@ -14,11 +14,12 @@ _LOGGER = logging.getLogger(__name__)
 class KalkotronicCoordinators:
 
     def __init__(self, hass: HomeAssistant, client: KalkotronicClient):
+        # Coordinator unico per tutti i dati frequenti (ottimizzazione principale)
         self.fast = DataUpdateCoordinator(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_fast",
-            update_method=client.fetch_fast_data,
+            update_method=client.fetch_all_fast,  # fetch combinato
             update_interval=timedelta(seconds=UPDATE_FAST),
         )
         self.daily = DataUpdateCoordinator(
@@ -27,20 +28,6 @@ class KalkotronicCoordinators:
             name=f"{DOMAIN}_daily",
             update_method=client.fetch_daily_data,
             update_interval=None,  # nessun intervallo automatico
-        )
-        self.status = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_status",
-            update_method=client.fetch_home_status,
-            update_interval=timedelta(seconds=UPDATE_FAST),
-        )
-        self.energy = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_energy",
-            update_method=client.fetch_energy_data,
-            update_interval=timedelta(seconds=UPDATE_FAST),
         )
 
         # Trigger alle 00:01 ogni notte per il coordinator daily
@@ -61,6 +48,4 @@ class KalkotronicCoordinators:
         """Primo aggiornamento di tutti i coordinator al setup."""
         await self.fast.async_config_entry_first_refresh()
         await self.daily.async_config_entry_first_refresh()
-        await self.status.async_config_entry_first_refresh()
-        await self.energy.async_config_entry_first_refresh()
         
