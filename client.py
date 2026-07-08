@@ -1,29 +1,43 @@
 import aiohttp
 import re
+import asyncio
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class KalkotronicClient:
-    """Esegue le richieste HTTP verso il modulo ESP8266.
-
-    Una GET per pagina, tutti i valori della pagina estratti insieme.
-    """
+    """Client ottimizzato con sessione HTTP persistente per ridurre il carico sull'ESP8266."""
 
     def __init__(self, host: str):
         self._host = host
+        self._session: aiohttp.ClientSession | None = None
+        self._lock = asyncio.Lock()
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Ottiene o crea una sessione persistente."""
+        async with self._lock:
+            if self._session is None or self._session.closed:
+                timeout = aiohttp.ClientTimeout(total=15, sock_connect=10)
+                self._session = aiohttp.ClientSession(timeout=timeout)
+            return self._session
+
+    async def close(self):
+        """Chiude la sessione (da chiamare in unload)."""
+        if self._session and not self._session.closed:
+            await self._session.close()
 
     async def _get_page(self, pin: str) -> str:
-        """Esegue una GET e restituisce l'HTML grezzo."""
+        """Esegue una GET con sessione riutilizzata."""
+        session = await self._get_session()
         url = f"http://{self._host}/?pin={pin}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                resp.raise_for_status()
-                return await resp.text()
+        
+        async with session.get(url) as resp:
+            resp.raise_for_status()
+            return await resp.text()
 
     async def fetch_fast_data(self) -> dict:
-        """Pagina CaricaDatiImp — aggiornamento ogni 2 minuti."""
+        """Pagina CaricaDatiImp — aggiornamento frequente."""
         html = await self._get_page("CaricaDatiImp")
         return _parse_fast_data(html)
 
@@ -33,14 +47,31 @@ class KalkotronicClient:
         return _parse_daily_data(html)
 
     async def fetch_home_status(self) -> dict:
-        """Home page — aggiornamento ogni 2 minuti."""
+        """Home page — stato sistema."""
         html = await self._get_page("Home")
         return _parse_home_status(html)
 
     async def fetch_energy_data(self) -> dict:
-        """Pagina Consumielettrici — aggiornamento ogni 2 minuti."""
+        """Pagina Consumielettrici."""
         html = await self._get_page("Consumielettrici")
         return _parse_energy_data(html)
+
+    async def fetch_all_fast(self) -> dict:
+        """Fetch combinato per ridurre il numero di richieste all'ESP (principale ottimizzazione)."""
+        tasks = [
+            self.fetch_fast_data(),
+            self.fetch_home_status(),
+            self.fetch_energy_data(),
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        data = {}
+        for result in results:
+            if isinstance(result, dict):
+                data.update(result)
+            elif isinstance(result, Exception):
+                _LOGGER.warning("Errore durante fetch fast data: %s", result)
+        return data
 
 
 def _find(pattern: str, html: str):
