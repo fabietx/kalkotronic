@@ -86,21 +86,19 @@ SENSOR_META = {
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    coordinators = hass.data[DOMAIN][entry.entry_id]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinators = entry_data["coordinators"]
     host = entry.data["host"]
-    daily_data = coordinators.daily.data
+    daily_data = coordinators.daily.data or {}
     entities = []
 
-    for key in coordinators.fast.data:
-        if key not in EXCLUDED_FROM_SENSORS:
-            entities.append(
-                KalkotronicSensor(coordinators.fast, key, host, daily_data)
-            )
-
-    for key in coordinators.energy.data:
-        entities.append(
-            KalkotronicSensor(coordinators.energy, key, host, daily_data)
-        )
+    # Tutti i dati fast ora sono nel coordinator fast
+    if coordinators.fast.data:
+        for key in coordinators.fast.data:
+            if key not in EXCLUDED_FROM_SENSORS:
+                entities.append(
+                    KalkotronicSensor(coordinators.fast, key, host, daily_data)
+                )
 
     async_add_entities(entities)
 
