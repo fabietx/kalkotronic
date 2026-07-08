@@ -20,7 +20,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await coordinators.async_refresh_all()
 
     # Rendi i coordinator disponibili alle piattaforme
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinators
+    data = hass.data.setdefault(DOMAIN, {})
+    data[entry.entry_id] = {"coordinators": coordinators, "client": client}
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -29,5 +30,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
+        client = entry_data.get("client")
+        if client:
+            await client.close()
     return unloaded
