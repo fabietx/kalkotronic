@@ -15,7 +15,14 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    client = KalkotronicClient(entry.data["host"])
+    conf = {**entry.data, **entry.options}
+    client = KalkotronicClient(
+        conf["host"],
+        wifi_ssid=conf.get("wifi_ssid"),
+        wifi_password=conf.get("wifi_password"),
+        gateway=conf.get("gateway"),
+        subnet=conf.get("subnet"),
+    )
     coordinators = KalkotronicCoordinators(hass, client)
     await coordinators.async_refresh_all()
 
@@ -23,8 +30,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     data = hass.data.setdefault(DOMAIN, {})
     data[entry.entry_id] = {"coordinators": coordinators, "client": client}
 
+    # Ricarica l'integrazione quando cambiano le opzioni (parametri wifi)
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _async_reload_on_update(hass: HomeAssistant, entry: ConfigEntry):
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):

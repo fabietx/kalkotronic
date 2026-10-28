@@ -3,6 +3,8 @@ import re
 
 import aiohttp
 from homeassistant import config_entries
+from homeassistant.core import callback
+from homeassistant.helpers import selector
 import voluptuous as vol
 
 from .const import DOMAIN
@@ -27,8 +29,27 @@ async def _test_connection(host: str) -> bool:
         return False
 
 
+def _wifi_schema(defaults: dict) -> dict:
+    """Campi opzionali per il recupero automatico della rete wifi."""
+    return {
+        vol.Optional("wifi_ssid", default=defaults.get("wifi_ssid", "")): str,
+        vol.Optional(
+            "wifi_password", default=defaults.get("wifi_password", "")
+        ): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        ),
+        vol.Optional("gateway", default=defaults.get("gateway", "")): str,
+        vol.Optional("subnet", default=defaults.get("subnet", "255.255.255.0")): str,
+    }
+
+
 class KalkotronicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return KalkotronicOptionsFlow()
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -43,18 +64,33 @@ class KalkotronicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["host"] = "cannot_connect"
 
             else:
-                self.async_set_unique_id(host)
+                await self.async_set_unique_id(host)
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
                     title=f"Kalkotronic {host}",
-                    data={"host": host},
+                    data={**user_input, "host": host},
                 )
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Required("host"): str,
+                **_wifi_schema({}),
             }),
             errors=errors,
+        )
+
+
+class KalkotronicOptionsFlow(config_entries.OptionsFlow):
+    """Permette di impostare i parametri wifi su installazioni esistenti."""
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(_wifi_schema(current)),
         )

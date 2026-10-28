@@ -36,7 +36,7 @@ async def async_setup_services(hass: HomeAssistant):
 
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=10) as resp:
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                         resp.raise_for_status()
                         _LOGGER.info("Orario aggiornato su %s → %s", host, date_str)
             except aiohttp.ClientError as err:

@@ -13,12 +13,14 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    coordinators = hass.data[DOMAIN][entry.entry_id]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinators = entry_data["coordinators"]
     host = entry.data["host"]
-    daily_data = coordinators.daily.data
+    daily_data = coordinators.daily.data or {}
 
+    # system_problem e status_color arrivano dal coordinator fast
     async_add_entities([
-        KalkotronicProblemSensor(coordinators.status, host, daily_data)
+        KalkotronicProblemSensor(coordinators.fast, host, daily_data)
     ])
 
 
@@ -34,9 +36,10 @@ class KalkotronicProblemSensor(CoordinatorEntity, BinarySensorEntity):
         self._attr_icon        = "mdi:alert"
 
     @property
-    def is_on(self) -> bool:
-        # True = problema rilevato, False = tutto OK
-        return self.coordinator.data.get("system_problem", True)
+    def is_on(self) -> bool | None:
+        # True = problema rilevato, False = tutto OK,
+        # None = stato sconosciuto (pagina Home non letta)
+        return self.coordinator.data.get("system_problem")
 
     @property
     def extra_state_attributes(self):

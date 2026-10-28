@@ -4,8 +4,13 @@
       "user": {
         "title": "Configura Kalkotronic",
         "data": {
-          "host": "Indirizzo IP"
-        }
+          "host": "Indirizzo IP",
+          "wifi_ssid": "SSID wifi (opzionale)",
+          "wifi_password": "Password wifi (opzionale)",
+          "gateway": "Gateway (opzionale)",
+          "subnet": "Subnet mask (opzionale)"
+        },
+        "description": "I parametri wifi servono a ripristinare automaticamente la connessione se il modulo torna in modalità configurazione."
       }
     },
     "error": {
@@ -14,6 +19,19 @@
     },
     "abort": {
       "already_configured": "Dispositivo già configurato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Recupero automatico wifi",
+        "data": {
+          "wifi_ssid": "SSID wifi",
+          "wifi_password": "Password wifi",
+          "gateway": "Gateway",
+          "subnet": "Subnet mask"
+        }
+      }
     }
   }
 }

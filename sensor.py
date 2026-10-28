@@ -92,13 +92,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
     daily_data = coordinators.daily.data or {}
     entities = []
 
-    # Tutti i dati fast ora sono nel coordinator fast
-    if coordinators.fast.data:
-        for key in coordinators.fast.data:
-            if key not in EXCLUDED_FROM_SENSORS:
-                entities.append(
-                    KalkotronicSensor(coordinators.fast, key, host, daily_data)
-                )
+    # Un sensore per ogni chiave nota: così esistono anche se una pagina
+    # non ha risposto durante il setup. system_problem e status_color
+    # sono gestiti dal binary sensor.
+    for key in SENSOR_META:
+        entities.append(
+            KalkotronicSensor(coordinators.fast, key, host, daily_data)
+        )
 
     async_add_entities(entities)
 

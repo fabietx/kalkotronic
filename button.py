@@ -10,19 +10,21 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    coordinators = hass.data[DOMAIN][entry.entry_id]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinators = entry_data["coordinators"]
     host = entry.data["host"]
-    daily_data = coordinators.daily.data
+    daily_data = coordinators.daily.data or {}
 
     async_add_entities([
-        KalkotronicResetButton(host, daily_data)
+        KalkotronicResetButton(host, daily_data, coordinators.fast)
     ])
 
 
 class KalkotronicResetButton(ButtonEntity):
 
-    def __init__(self, host, daily_data):
+    def __init__(self, host, daily_data, fast_coordinator):
         self._host = host
+        self._fast = fast_coordinator
         self._daily_data = daily_data
         self._attr_name      = "Reset Allarmi"
         self._attr_unique_id = f"{host}_reset_alarms"
@@ -31,11 +33,17 @@ class KalkotronicResetButton(ButtonEntity):
     async def async_press(self):
         url = f"http://{self._host}/?pin=ResAllSET+"
         try:
+            timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                await session.get(url, timeout=10)
-                _LOGGER.info("Reset allarmi eseguito su %s", self._host)
+                async with session.get(url, timeout=timeout) as resp:
+                    resp.raise_for_status()
+            _LOGGER.info("Reset allarmi eseguito su %s", self._host)
         except Exception as err:
             _LOGGER.error("Errore reset allarmi su %s: %s", self._host, err)
+            return
+
+        # Aggiorna subito i contatori allarmi
+        await self._fast.async_request_refresh()
 
     @property
     def device_info(self):
