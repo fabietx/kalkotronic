@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configura Kalkotronic",
+        "data": {
+          "host": "Indirizzo IP",
+          "wifi_ssid": "SSID wifi (opzionale)",
+          "wifi_password": "Password wifi (opzionale)",
+          "gateway": "Gateway (opzionale)",
+          "subnet": "Subnet mask (opzionale)"
+        },
+        "description": "I parametri wifi servono a ripristinare automaticamente la connessione se il modulo torna in modalità configurazione."
+      }
+    },
+    "error": {
+      "invalid_ip": "Indirizzo IP non valido. Inserisci un IPv4 nel formato 192.168.1.x",
+      "cannot_connect": "Impossibile connettersi al dispositivo. Verifica che sia acceso e raggiungibile."
+    },
+    "abort": {
+      "already_configured": "Dispositivo già configurato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Recupero automatico wifi",
+        "data": {
+          "wifi_ssid": "SSID wifi",
+          "wifi_password": "Password wifi",
+          "gateway": "Gateway",
+          "subnet": "Subnet mask"
+        }
+      }
+    }
+  }
+}

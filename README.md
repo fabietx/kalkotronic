@@ -1,4 +1,4 @@
-# Kalko Tronic Integration v0.3
+# Kalko Tronic Integration v0.4
 
 **Ottimizzazioni v0.3:**
 - Sessione HTTP persistente (riduce overhead di connessione)
@@ -9,7 +9,14 @@
 
 Questa integrazione permette di monitorare un addolcitore d'acqua Kalkotronic tramite scraping del webserver ESP integrato.
 
+**Novità v0.4:**
+- Recupero automatico del wifi: se dopo alcuni giorni l'ESP risponde con la pagina di configurazione invece dei dati, l'integrazione reinvia SSID, password, IP e gateway (impostabili in Configura)
+- Struttura HACS completa in `custom_components/kalkotronic/`
+- Corretti binary sensor e pulsante di reset (rotti dalla 0.3)
+- Richieste all'ESP di nuovo in sequenza con pausa
+
 ## Changelog
+- **0.4** (ottobre 2026): Recupero automatico wifi, fix piattaforme, struttura HACS
 - **0.3** (luglio 2026): Ottimizzazioni prestazioni
 - **0.2**: Versione iniziale
 
