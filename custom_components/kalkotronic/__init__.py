@@ -1,34 +1,93 @@
+"""Integrazione Home Assistant per gli addolcitori Kalkotronic."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_HOST, Platform
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers.typing import ConfigType
 
-from .client import KalkotronicClient
-from .coordinator import KalkotronicCoordinators
-from .const import DOMAIN
 from . import services
+from .client import KalkotronicClient
+from .const import (
+    CONF_GATEWAY,
+    CONF_SUBNET,
+    CONF_WIFI_PASSWORD,
+    CONF_WIFI_SSID,
+    DOMAIN,
+    MANUFACTURER,
+)
+from .coordinator import KalkotronicCoordinators
 
-PLATFORMS = ["sensor", "binary_sensor", "button"]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
-async def async_setup(hass: HomeAssistant, config: dict):
-    await services.async_setup_services(hass)
+@dataclass
+class KalkotronicRuntimeData:
+    """Oggetti condivisi tra le piattaforme di un'entry."""
+
+    client: KalkotronicClient
+    coordinators: KalkotronicCoordinators
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    services.async_setup_services(hass)
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     conf = {**entry.data, **entry.options}
+    host = conf[CONF_HOST]
     client = KalkotronicClient(
-        conf["host"],
-        wifi_ssid=conf.get("wifi_ssid"),
-        wifi_password=conf.get("wifi_password"),
-        gateway=conf.get("gateway"),
-        subnet=conf.get("subnet"),
+        host,
+        wifi_ssid=conf.get(CONF_WIFI_SSID),
+        wifi_password=conf.get(CONF_WIFI_PASSWORD),
+        gateway=conf.get(CONF_GATEWAY),
+        subnet=conf.get(CONF_SUBNET),
     )
-    coordinators = KalkotronicCoordinators(hass, client)
-    await coordinators.async_refresh_all()
+    coordinators = KalkotronicCoordinators(hass, entry, client)
 
-    # Rendi i coordinator disponibili alle piattaforme
-    data = hass.data.setdefault(DOMAIN, {})
-    data[entry.entry_id] = {"coordinators": coordinators, "client": client}
+    try:
+        await coordinators.async_setup()
+    except BaseException:
+        # Setup fallito (HA lo riproverà): non lasciare sessioni aperte
+        await client.close()
+        raise
+
+    entry.runtime_data = KalkotronicRuntimeData(client, coordinators)
+
+    # Il dispositivo viene creato qui e aggiornato a ogni lettura giornaliera,
+    # così modello, seriale e versione restano allineati
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, host)},
+        manufacturer=MANUFACTURER,
+        name=f"Kalkotronic {host}",
+    )
+
+    @callback
+    def _async_update_device() -> None:
+        info = coordinators.daily.data
+        if not info:
+            return
+        device = device_registry.async_get_device(identifiers={(DOMAIN, host)})
+        if device is None:
+            return
+        device_registry.async_update_device(
+            device.id,
+            model=info.get("model"),
+            serial_number=info.get("serial"),
+            sw_version=info.get("sw_version"),
+        )
+
+    _async_update_device()
+    entry.async_on_unload(coordinators.daily.async_add_listener(_async_update_device))
 
     # Ricarica l'integrazione quando cambiano le opzioni (parametri wifi)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
@@ -37,15 +96,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-async def _async_reload_on_update(hass: HomeAssistant, entry: ConfigEntry):
+async def _async_reload_on_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
-        client = entry_data.get("client")
-        if client:
-            await client.close()
+        await entry.runtime_data.client.close()
     return unloaded

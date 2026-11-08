@@ -3,19 +3,22 @@
     "step": {
       "user": {
         "title": "Configura Kalkotronic",
+        "description": "I parametri wifi servono a ripristinare automaticamente la connessione se il modulo torna in modalità configurazione. Per attivare il recupero servono SSID, password e gateway.",
         "data": {
           "host": "Indirizzo IP",
           "wifi_ssid": "SSID wifi (opzionale)",
           "wifi_password": "Password wifi (opzionale)",
           "gateway": "Gateway (opzionale)",
           "subnet": "Subnet mask (opzionale)"
-        },
-        "description": "I parametri wifi servono a ripristinare automaticamente la connessione se il modulo torna in modalità configurazione."
+        }
       }
     },
     "error": {
       "invalid_ip": "Indirizzo IP non valido. Inserisci un IPv4 nel formato 192.168.1.x",
-      "cannot_connect": "Impossibile connettersi al dispositivo. Verifica che sia acceso e raggiungibile."
+      "cannot_connect": "Impossibile connettersi al dispositivo. Verifica che sia acceso e raggiungibile.",
+      "invalid_gateway": "Gateway non valido. Inserisci un IPv4 nel formato 192.168.1.x",
+      "invalid_subnet": "Subnet mask non valida (esempio: 255.255.255.0)",
+      "incomplete_wifi": "Per il recupero automatico del wifi servono SSID, password e gateway insieme."
     },
     "abort": {
       "already_configured": "Dispositivo già configurato."
@@ -25,6 +28,7 @@
     "step": {
       "init": {
         "title": "Recupero automatico wifi",
+        "description": "Per attivare il recupero servono SSID, password e gateway. Lascia tutto vuoto per disattivarlo.",
         "data": {
           "wifi_ssid": "SSID wifi",
           "wifi_password": "Password wifi",
@@ -32,6 +36,17 @@
           "subnet": "Subnet mask"
         }
       }
+    },
+    "error": {
+      "invalid_gateway": "Gateway non valido. Inserisci un IPv4 nel formato 192.168.1.x",
+      "invalid_subnet": "Subnet mask non valida (esempio: 255.255.255.0)",
+      "incomplete_wifi": "Per il recupero automatico del wifi servono SSID, password e gateway insieme."
+    }
+  },
+  "services": {
+    "update_datetime": {
+      "name": "Sincronizza data e ora",
+      "description": "Imposta sul dispositivo Kalkotronic la data e l'ora di Home Assistant (il dispositivo non supporta NTP)."
     }
   }
 }

@@ -1,57 +1,46 @@
+"""Pulsante di reset allarmi Kalkotronic."""
+
+from __future__ import annotations
+
 import logging
 
-import aiohttp
 from homeassistant.components.button import ButtonEntity
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, MANUFACTURER
+from .entity import device_info
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    coordinators = entry_data["coordinators"]
-    host = entry.data["host"]
-    daily_data = coordinators.daily.data or {}
-
-    async_add_entities([
-        KalkotronicResetButton(host, daily_data, coordinators.fast)
-    ])
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    async_add_entities([KalkotronicResetButton(entry)])
 
 
 class KalkotronicResetButton(ButtonEntity):
+    _attr_icon = "mdi:alarm-light-off"
 
-    def __init__(self, host, daily_data, fast_coordinator):
-        self._host = host
-        self._fast = fast_coordinator
-        self._daily_data = daily_data
-        self._attr_name      = "Reset Allarmi"
+    def __init__(self, entry: ConfigEntry) -> None:
+        host = entry.data[CONF_HOST]
+        self._client = entry.runtime_data.client
+        self._fast = entry.runtime_data.coordinators.fast
+        self._attr_name = "Reset Allarmi"
         self._attr_unique_id = f"{host}_reset_alarms"
-        self._attr_icon      = "mdi:alarm-light-off"
+        self._attr_device_info = device_info(host)
 
-    async def async_press(self):
-        url = f"http://{self._host}/?pin=ResAllSET+"
+    async def async_press(self) -> None:
+        # Passa dal client: la richiesta viene accodata alle letture in corso
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=timeout) as resp:
-                    resp.raise_for_status()
-            _LOGGER.info("Reset allarmi eseguito su %s", self._host)
+            await self._client.reset_alarms()
         except Exception as err:
-            _LOGGER.error("Errore reset allarmi su %s: %s", self._host, err)
-            return
-
+            raise HomeAssistantError(
+                f"Reset allarmi su {self._client.host} non riuscito: {err}"
+            ) from err
+        _LOGGER.info("Reset allarmi eseguito su %s", self._client.host)
         # Aggiorna subito i contatori allarmi
         await self._fast.async_request_refresh()
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._host)},
-            name=f"Kalkotronic {self._host}",
-            manufacturer=MANUFACTURER,
-            model=self._daily_data.get("model"),
-            serial_number=self._daily_data.get("serial"),
-            sw_version=self._daily_data.get("sw_version"),
-        )

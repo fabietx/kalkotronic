@@ -1,51 +1,51 @@
-import logging
-from datetime import datetime
-from urllib.parse import quote_plus
+"""Servizi dell'integrazione Kalkotronic."""
 
-import aiohttp
-from yarl import URL
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.config_entries import ConfigEntry
+from __future__ import annotations
+
+import logging
+
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+SERVICE_UPDATE_DATETIME = "update_datetime"
 
-async def async_setup_services(hass: HomeAssistant):
-    """Registra i servizi dell'integrazione Kalkotronic."""
 
-    async def handle_update_datetime(call: ServiceCall):
-        entries: list[ConfigEntry] = hass.config_entries.async_entries(DOMAIN)
+@callback
+def async_setup_services(hass: HomeAssistant) -> None:
+    """Registra i servizi dell'integrazione."""
 
+    async def handle_update_datetime(call: ServiceCall) -> None:
+        entries = [
+            entry
+            for entry in hass.config_entries.async_entries(DOMAIN)
+            if entry.state is ConfigEntryState.LOADED
+        ]
         if not entries:
-            _LOGGER.error("Nessun dispositivo Kalkotronic configurato")
-            return
+            raise ServiceValidationError("Nessun dispositivo Kalkotronic attivo")
 
-        now = datetime.now()
-        date_str = now.strftime("%d.%m.%Y %H:%M")
-        # quote_plus produce: 13.04.2026+21%3A00
-        # encoded=True impedisce ad aiohttp di ri-codificare %3A in %253A
-        date_encoded = quote_plus(date_str)
-
+        # Ora nel fuso configurato in Home Assistant, non in quello del sistema
+        now = dt_util.now()
+        errors: list[str] = []
         for entry in entries:
-            host = entry.data["host"]
-            url = URL(f"http://{host}/?Mia_Data_ora={date_encoded}", encoded=True)
-
-            _LOGGER.debug("Aggiornamento orario Kalkotronic [%s]: %s", host, url)
-
+            client = entry.runtime_data.client
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        resp.raise_for_status()
-                        _LOGGER.info("Orario aggiornato su %s → %s", host, date_str)
-            except aiohttp.ClientError as err:
-                _LOGGER.error("Errore di rete su %s: %s", host, err)
-            except Exception as err:
-                _LOGGER.error("Errore inatteso su %s: %s", host, err)
+                await client.set_datetime(now)
+            except Exception as err:  # noqa: BLE001
+                errors.append(f"{client.host}: {err}")
+                continue
+            _LOGGER.info(
+                "Orario aggiornato su %s: %s", client.host, now.strftime("%d.%m.%Y %H:%M")
+            )
 
-    hass.services.async_register(
-        DOMAIN,
-        "update_datetime",
-        handle_update_datetime,
-    )
+        if errors:
+            raise HomeAssistantError(
+                "Sincronizzazione orario non riuscita: " + "; ".join(errors)
+            )
+
+    hass.services.async_register(DOMAIN, SERVICE_UPDATE_DATETIME, handle_update_datetime)

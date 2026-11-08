@@ -1,59 +1,43 @@
-import logging
+"""Sensore binario di problema Kalkotronic."""
+
+from __future__ import annotations
+
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
     BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, MANUFACTURER
-
-_LOGGER = logging.getLogger(__name__)
-
-
-async def async_setup_entry(hass, entry, async_add_entities):
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    coordinators = entry_data["coordinators"]
-    host = entry.data["host"]
-    daily_data = coordinators.daily.data or {}
-
-    # system_problem e status_color arrivano dal coordinator fast
-    async_add_entities([
-        KalkotronicProblemSensor(coordinators.fast, host, daily_data)
-    ])
+from .entity import KalkotronicEntity
 
 
-class KalkotronicProblemSensor(CoordinatorEntity, BinarySensorEntity):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    fast = entry.runtime_data.coordinators.fast
+    async_add_entities([KalkotronicProblemSensor(fast, entry.data[CONF_HOST])])
 
-    def __init__(self, coordinator, host, daily_data):
-        super().__init__(coordinator)
-        self._host = host
-        self._daily_data = daily_data
-        self._attr_name        = "System Problem"
-        self._attr_unique_id   = f"{host}_system_problem"
-        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
-        self._attr_icon        = "mdi:alert"
+
+class KalkotronicProblemSensor(KalkotronicEntity, BinarySensorEntity):
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_icon = "mdi:alert"
+
+    def __init__(self, coordinator, host: str) -> None:
+        super().__init__(coordinator, host, "system_problem")
+        self._attr_name = "System Problem"
+        self._attr_unique_id = f"{host}_system_problem"
 
     @property
     def is_on(self) -> bool | None:
-        # True = problema rilevato, False = tutto OK,
-        # None = stato sconosciuto (pagina Home non letta)
-        return self.coordinator.data.get("system_problem")
+        # True = problema rilevato, False = tutto OK
+        return self._value
 
     @property
-    def extra_state_attributes(self):
-        return {
-            "status_color": self.coordinator.data.get("status_color"),
-        }
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._host)},
-            name=f"Kalkotronic {self._host}",
-            manufacturer=MANUFACTURER,
-            model=self._daily_data.get("model"),
-            serial_number=self._daily_data.get("serial"),
-            sw_version=self._daily_data.get("sw_version"),
-        )
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self.coordinator.data or {}
+        return {"status_color": data.get("status_color")}

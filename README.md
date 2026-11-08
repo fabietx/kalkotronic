@@ -1,25 +1,34 @@
-# Kalko Tronic Integration v0.4
+# Kalko Tronic Integration v0.5
 
-**Ottimizzazioni v0.3:**
-- Sessione HTTP persistente (riduce overhead di connessione)
-- **Fetch combinato** dei dati frequenti (una sola tornata di richieste parallele invece di 3 separate ogni 2 minuti)
-- Cleanup risorse corretto
-- Riduzione significativa del carico sul webserver ESP8266
-- Logging migliorato
+Integrazione custom per Home Assistant che monitora un addolcitore d'acqua Kalkotronic tramite il webserver ESP8266 integrato (scraping delle pagine locali, nessun cloud).
 
-Questa integrazione permette di monitorare un addolcitore d'acqua Kalkotronic tramite scraping del webserver ESP integrato.
+## Funzionalità
+- **Sensori**: temperatura impianto, efficienza, giorni di lavoro, giorni alla manutenzione, ritardo manutenzione, allarmi temperatura e fusibile, messaggio di stato, energia consumata.
+- **Sensore binario** "System Problem" basato sull'indicatore di stato della home page.
+- **Pulsante** "Reset Allarmi".
+- **Servizio** `kalkotronic.update_datetime` per sincronizzare data e ora del dispositivo (che non supporta NTP).
+- **Recupero automatico del wifi**: se l'ESP torna alla pagina di configurazione, l'integrazione reinvia SSID, password, IP e gateway impostati in *Configura*.
 
-**Novità v0.4:**
-- Recupero automatico del wifi: se dopo alcuni giorni l'ESP risponde con la pagina di configurazione invece dei dati, l'integrazione reinvia SSID, password, IP e gateway (impostabili in Configura)
-- Struttura HACS completa in `custom_components/kalkotronic/`
-- Corretti binary sensor e pulsante di reset (rotti dalla 0.3)
-- Richieste all'ESP di nuovo in sequenza con pausa
+## Aggiornamento dei dati
+- Dati dell'impianto: ogni 2 minuti, leggendo le pagine una alla volta.
+- Modello, seriale e versioni: ogni notte alle 00:01; se la lettura fallisce, nuovo tentativo dopo 30 minuti.
+- In caso di errore sporadico dell'ESP i sensori mantengono l'ultimo valore valido per massimo 10 minuti; oltre, diventano "Non disponibile".
+
+## Installazione
+Tramite HACS come repository personalizzato (tipo *Integration*), oppure copiando `custom_components/kalkotronic/` nella cartella `config/custom_components/` di Home Assistant. Riavviare e aggiungere l'integrazione da *Impostazioni > Dispositivi e servizi*.
+
+Richiede Home Assistant 2024.11 o successivo.
+
+## Diagnostica
+Per il log dettagliato aggiungere a `configuration.yaml`:
+
+```yaml
+logger:
+  logs:
+    custom_components.kalkotronic: debug
+```
 
 ## Changelog
-- **0.4** (ottobre 2026): Recupero automatico wifi, fix piattaforme, struttura HACS
-- **0.3** (luglio 2026): Ottimizzazioni prestazioni
-- **0.2**: Versione iniziale
-
-Per dettagli vedi il codice sorgente.
+Vedi [CHANGELOG.md](CHANGELOG.md).
 
 Sito produttore: https://www.kalkotronic.com/

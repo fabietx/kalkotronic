@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Kalkotronic",
+        "description": "The wifi parameters are used to automatically restore the connection if the module falls back to configuration mode. SSID, password and gateway are all required to enable recovery.",
+        "data": {
+          "host": "IP address",
+          "wifi_ssid": "Wifi SSID (optional)",
+          "wifi_password": "Wifi password (optional)",
+          "gateway": "Gateway (optional)",
+          "subnet": "Subnet mask (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_ip": "Invalid IP address. Enter an IPv4 address such as 192.168.1.x",
+      "cannot_connect": "Unable to connect to the device. Check that it is powered on and reachable.",
+      "invalid_gateway": "Invalid gateway. Enter an IPv4 address such as 192.168.1.x",
+      "invalid_subnet": "Invalid subnet mask (example: 255.255.255.0)",
+      "incomplete_wifi": "Automatic wifi recovery requires SSID, password and gateway together."
+    },
+    "abort": {
+      "already_configured": "Device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Automatic wifi recovery",
+        "description": "SSID, password and gateway are required to enable recovery. Leave everything empty to disable it.",
+        "data": {
+          "wifi_ssid": "Wifi SSID",
+          "wifi_password": "Wifi password",
+          "gateway": "Gateway",
+          "subnet": "Subnet mask"
+        }
+      }
+    },
+    "error": {
+      "invalid_gateway": "Invalid gateway. Enter an IPv4 address such as 192.168.1.x",
+      "invalid_subnet": "Invalid subnet mask (example: 255.255.255.0)",
+      "incomplete_wifi": "Automatic wifi recovery requires SSID, password and gateway together."
+    }
+  },
+  "services": {
+    "update_datetime": {
+      "name": "Synchronize date and time",
+      "description": "Sets the Home Assistant date and time on the Kalkotronic device (the device does not support NTP)."
+    }
+  }
+}

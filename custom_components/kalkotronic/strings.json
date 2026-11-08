@@ -2,36 +2,51 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configura Kalkotronic",
+        "title": "Set up Kalkotronic",
+        "description": "The wifi parameters are used to automatically restore the connection if the module falls back to configuration mode. SSID, password and gateway are all required to enable recovery.",
         "data": {
-          "host": "Indirizzo IP",
-          "wifi_ssid": "SSID wifi (opzionale)",
-          "wifi_password": "Password wifi (opzionale)",
-          "gateway": "Gateway (opzionale)",
-          "subnet": "Subnet mask (opzionale)"
-        },
-        "description": "I parametri wifi servono a ripristinare automaticamente la connessione se il modulo torna in modalità configurazione."
+          "host": "IP address",
+          "wifi_ssid": "Wifi SSID (optional)",
+          "wifi_password": "Wifi password (optional)",
+          "gateway": "Gateway (optional)",
+          "subnet": "Subnet mask (optional)"
+        }
       }
     },
     "error": {
-      "invalid_ip": "Indirizzo IP non valido. Inserisci un IPv4 nel formato 192.168.1.x",
-      "cannot_connect": "Impossibile connettersi al dispositivo. Verifica che sia acceso e raggiungibile."
+      "invalid_ip": "Invalid IP address. Enter an IPv4 address such as 192.168.1.x",
+      "cannot_connect": "Unable to connect to the device. Check that it is powered on and reachable.",
+      "invalid_gateway": "Invalid gateway. Enter an IPv4 address such as 192.168.1.x",
+      "invalid_subnet": "Invalid subnet mask (example: 255.255.255.0)",
+      "incomplete_wifi": "Automatic wifi recovery requires SSID, password and gateway together."
     },
     "abort": {
-      "already_configured": "Dispositivo già configurato."
+      "already_configured": "Device is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Recupero automatico wifi",
+        "title": "Automatic wifi recovery",
+        "description": "SSID, password and gateway are required to enable recovery. Leave everything empty to disable it.",
         "data": {
-          "wifi_ssid": "SSID wifi",
-          "wifi_password": "Password wifi",
+          "wifi_ssid": "Wifi SSID",
+          "wifi_password": "Wifi password",
           "gateway": "Gateway",
           "subnet": "Subnet mask"
         }
       }
+    },
+    "error": {
+      "invalid_gateway": "Invalid gateway. Enter an IPv4 address such as 192.168.1.x",
+      "invalid_subnet": "Invalid subnet mask (example: 255.255.255.0)",
+      "incomplete_wifi": "Automatic wifi recovery requires SSID, password and gateway together."
+    }
+  },
+  "services": {
+    "update_datetime": {
+      "name": "Synchronize date and time",
+      "description": "Sets the Home Assistant date and time on the Kalkotronic device (the device does not support NTP)."
     }
   }
 }
