@@ -29,6 +29,18 @@ SENSOR_NAMES = {
     "energy": "Energia consumata",
 }
 
+# Sensori del coordinator giornaliero (pagina ResAll, letta alle 00:01 e
+# dopo ogni pressione del pulsante di rinvio)
+DAILY_SENSORS: dict[str, dict[str, Any]] = {
+    "maintenance_snooze_days": {
+        "name": "Riattivazione allarme manutenzione",
+        "device_class": None,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "giorni",
+        "icon": "mdi:timer-sand",
+    },
+}
+
 SENSOR_META: dict[str, dict[str, Any]] = {
     "temperature": {
         "device_class": SensorDeviceClass.TEMPERATURE,
@@ -90,17 +102,26 @@ SENSOR_META: dict[str, dict[str, Any]] = {
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    fast = entry.runtime_data.coordinators.fast
+    coordinators = entry.runtime_data.coordinators
     host = entry.data[CONF_HOST]
     # Un sensore per ogni chiave nota, anche se una pagina non ha risposto al setup
-    async_add_entities(KalkotronicSensor(fast, host, key) for key in SENSOR_META)
+    entities = [
+        KalkotronicSensor(coordinators.fast, host, key, SENSOR_NAMES[key], SENSOR_META[key])
+        for key in SENSOR_META
+    ]
+    entities += [
+        KalkotronicSensor(coordinators.daily, host, key, meta["name"], meta)
+        for key, meta in DAILY_SENSORS.items()
+    ]
+    async_add_entities(entities)
 
 
 class KalkotronicSensor(KalkotronicEntity, SensorEntity):
-    def __init__(self, coordinator, host: str, key: str) -> None:
+    def __init__(
+        self, coordinator, host: str, key: str, name: str, meta: dict[str, Any]
+    ) -> None:
         super().__init__(coordinator, host, key)
-        meta = SENSOR_META[key]
-        self._attr_name = SENSOR_NAMES[key]
+        self._attr_name = name
         self._attr_unique_id = f"{host}_{key}"
         self._attr_device_class = meta["device_class"]
         self._attr_state_class = meta["state_class"]

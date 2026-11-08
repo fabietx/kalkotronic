@@ -23,12 +23,14 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class KalkotronicCoordinators:
-    """Coordinator "fast" (ogni UPDATE_FAST secondi) e "daily" (alle 00:01)."""
+    """Coordinator "fast" (ogni UPDATE_FAST secondi) e "daily" (alle 00:01 e
+    dopo ogni rinvio dell'allarme manutenzione)."""
 
     def __init__(
         self, hass: HomeAssistant, entry: ConfigEntry, client: KalkotronicClient
     ) -> None:
         self._hass = hass
+        self._client = client
         self._unsub_retry: CALLBACK_TYPE | None = None
 
         self.fast: DataUpdateCoordinator[dict] = DataUpdateCoordinator(
@@ -81,7 +83,8 @@ class KalkotronicCoordinators:
         """Aggiorna i dati giornalieri; se falliscono, pianifica un nuovo tentativo."""
         self._cancel_retry()
         await self.daily.async_refresh()
-        if not self.daily.last_update_success:
+        # Ritenta anche se una sola delle pagine giornaliere non ha risposto
+        if not self.daily.last_update_success or self._client.daily_incomplete:
             self._unsub_retry = async_call_later(
                 self._hass, DAILY_RETRY, self._async_retry_daily
             )

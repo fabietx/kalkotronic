@@ -19,7 +19,7 @@ def device_info(host: str) -> DeviceInfo:
 
 
 class KalkotronicEntity(CoordinatorEntity[DataUpdateCoordinator[dict[str, Any]]]):
-    """Entità legata a una chiave dei dati del coordinator fast."""
+    """Entità legata a una chiave dei dati di un coordinator (fast o daily)."""
 
     def __init__(
         self, coordinator: DataUpdateCoordinator[dict[str, Any]], host: str, key: str

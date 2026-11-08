@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 (novembre 2026)
+
+### Allarme manutenzione
+- Il pulsante "Reset Allarmi" diventa **"Rinvio allarme manutenzione (7 giorni)"**, con icona `mdi:wrench-clock`: il comando `ResAllSET` della centralina rinvia l'allarme manutenzione di 7 giorni e non azzera i contatori degli allarmi temperatura e fusibile, quindi il nome precedente era fuorviante.
+- Il pulsante è spostato tra i controlli di configurazione del dispositivo (`entity_category: config`) per evitare pressioni accidentali; resta utilizzabile da automazioni e script.
+- Nuovo sensore **"Riattivazione allarme manutenzione"** (giorni), letto dalla pagina ResAll alle 00:01 e subito dopo ogni rinvio.
+- Dopo la pressione vengono aggiornati sia lo stato dell'impianto sia i giorni alla riattivazione.
+
+### Affidabilità
+- Lettura giornaliera a pagine indipendenti: se TipoImpianto o ResAll non risponde restano validi gli ultimi valori e viene pianificato un nuovo tentativo.
+
+### Compatibilità
+- unique_id del pulsante invariato: entity_id e automazioni esistenti restano validi (cambia solo il nome mostrato).
+- Il servizio `update_datetime` è invariato: il formato inviato coincide con quello del pulsante *Invia* della pagina di diagnostica.
+
+### Documentazione
+- Esempio di automazione giornaliera per la sincronizzazione dell'orario.
+
 ## 0.5.0 (novembre 2026)
 
 ### Affidabilità

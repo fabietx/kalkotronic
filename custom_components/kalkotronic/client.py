@@ -74,6 +74,10 @@ class KalkotronicClient:
         self._cache: dict[str, tuple[Any, float]] = {}
         # Cicli falliti consecutivi per pagina, per un logging non ripetitivo
         self._failures: dict[str, int] = {}
+        # Ultimi dati giornalieri validi (info dispositivo e rinvio manutenzione)
+        self._daily_cache: dict[str, Any] = {}
+        # True se l'ultima lettura giornaliera non ha letto tutte le pagine
+        self.daily_incomplete = False
 
     @property
     def host(self) -> str:
@@ -184,8 +188,12 @@ class KalkotronicClient:
 
     # --------------------------------------------------------------- comandi
 
-    async def reset_alarms(self) -> None:
-        """Azzera i contatori allarmi."""
+    async def snooze_maintenance_alarm(self) -> None:
+        """Rinvia di 7 giorni l'allarme manutenzione (pulsante della pagina ResAll).
+
+        Non azzera i contatori degli allarmi temperatura e fusibile. Dopo 180
+        giorni di ritardo l'impianto si blocca comunque.
+        """
         await self._request(URL(f"http://{self._host}/?pin=ResAllSET+", encoded=True))
 
     async def set_datetime(self, moment: datetime) -> None:
@@ -212,18 +220,40 @@ class KalkotronicClient:
         return _parse_energy_data(await self._get_page("Consumielettrici"))
 
     async def fetch_daily_data(self) -> dict[str, Any]:
-        """Pagina TipoImpianto: modello, seriale, versioni."""
-        try:
-            return await self._fetch_with_retry(self._fetch_daily_page)
-        except UpdateFailed:
-            raise
-        except Exception as err:
-            raise UpdateFailed(
-                f"Lettura TipoImpianto da {self._host} fallita: {err}"
-            ) from err
+        """Dati giornalieri: TipoImpianto (modello, seriale, versioni) e ResAll
+        (giorni alla riattivazione dell'allarme manutenzione).
 
-    async def _fetch_daily_page(self) -> dict[str, Any]:
+        Le due pagine sono indipendenti: se una non risponde restano validi gli
+        ultimi valori letti e daily_incomplete segnala al coordinator di
+        ritentare. Fallisce solo se non c'è alcun dato, nemmeno precedente.
+        """
+        pages = (
+            ("TipoImpianto", self._fetch_device_page),
+            ("ResAll", self._fetch_snooze_page),
+        )
+        errors: list[str] = []
+        for name, fetch in pages:
+            try:
+                values = await self._fetch_with_retry(fetch)
+            except Exception as err:  # noqa: BLE001
+                errors.append(f"{name}: {err}")
+                continue
+            self._daily_cache.update(
+                {key: value for key, value in values.items() if value is not None}
+            )
+
+        self.daily_incomplete = bool(errors)
+        if errors:
+            _LOGGER.debug("Lettura giornaliera parziale da %s: %s", self._host, errors)
+        if not self._daily_cache:
+            raise UpdateFailed(f"Lettura giornaliera da {self._host} fallita: {errors}")
+        return dict(self._daily_cache)
+
+    async def _fetch_device_page(self) -> dict[str, Any]:
         return _parse_daily_data(await self._get_page("TipoImpianto"))
+
+    async def _fetch_snooze_page(self) -> dict[str, Any]:
+        return _parse_snooze_data(await self._get_page("ResAll"))
 
     async def _fetch_with_retry(
         self, fetch: Callable[[], Awaitable[dict[str, Any]]]
@@ -384,6 +414,14 @@ def _parse_daily_data(html: str) -> dict[str, Any]:
     if all(value is None for value in data.values()):
         raise ValueError("nessun dato trovato in TipoImpianto (risposta incompleta)")
     return data
+
+
+def _parse_snooze_data(html: str) -> dict[str, Any]:
+    # "L'allarme si riattiverà tra: N giorni" (pattern tollerante sugli accenti)
+    days = _to_int(_find(r"si\s+riattiver\S*\s+tra:\s*(\d+)", html))
+    if days is None:
+        raise ValueError("giorni alla riattivazione non trovati in ResAll")
+    return {"maintenance_snooze_days": days}
 
 
 def _parse_home_status(html: str) -> dict[str, Any]:
