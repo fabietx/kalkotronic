@@ -35,6 +35,6 @@ class KalkotronicEntity(CoordinatorEntity[DataUpdateCoordinator[dict[str, Any]]]
 
     @property
     def available(self) -> bool:
-        # Non disponibile solo se il dato manca da più di STALE_MAX secondi
+        # Non disponibile solo se il dato ha superato la tenuta della sua pagina
         # o se l'impianto non risponde affatto
         return super().available and self._value is not None

@@ -26,7 +26,8 @@ from .const import (
     REQUEST_PAUSE,
     REQUEST_RETRIES,
     REQUEST_TIMEOUT,
-    STALE_MAX,
+    STALE_FACTOR,
+    STALE_MIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +39,15 @@ PORTAL_MARKERS = ("wifisave",)
 # Valore inviato nel campo "blynk" del portale di configurazione: è lo stesso
 # usato dalla v0.4. L'integrazione non usa Blynk, ma il portale si aspetta il campo.
 BLYNK_TOKEN = "YOUR_BLYNK_TOKEN"
+
+# Pagine dei dati frequenti, lette a intervalli diversi per alleggerire l'ESP
+PAGE_FAST = "CaricaDatiImp"
+PAGE_HOME = "Home"
+PAGE_ENERGY = "Consumielettrici"
+
+# Se uno di questi valori di CaricaDatiImp cambia, la Home viene riletta subito
+# anche se il suo intervallo non è scaduto: System Problem resta reattivo
+HOME_TRIGGERS = ("status_message", "temp_alarms", "fuse_alarms")
 
 
 class KalkotronicClient:
@@ -56,8 +66,24 @@ class KalkotronicClient:
         wifi_password: str | None = None,
         gateway: str | None = None,
         subnet: str | None = None,
+        fast_interval: int = 120,
+        home_interval: int = 600,
+        energy_interval: int = 1800,
     ) -> None:
         self._host = host
+        # Intervallo (secondi) e tenuta del dato per ogni pagina frequente.
+        # Home ed energia non possono essere letti più spesso del ciclo base.
+        self._intervals = {
+            PAGE_FAST: fast_interval,
+            PAGE_HOME: max(home_interval, fast_interval),
+            PAGE_ENERGY: max(energy_interval, fast_interval),
+        }
+        self._stale = {
+            page: max(STALE_MIN, STALE_FACTOR * interval)
+            for page, interval in self._intervals.items()
+        }
+        # Istante (monotonic) dell'ultima lettura riuscita di ogni pagina
+        self._page_read: dict[str, float] = {}
         self._ssid = wifi_ssid or None
         self._password = wifi_password or None
         self._gateway = gateway or None
@@ -70,8 +96,8 @@ class KalkotronicClient:
         self._last_request = float("-inf")
         self._last_recovery = float("-inf")
 
-        # Ultimo valore valido per chiave: {chiave: (valore, istante monotonic)}
-        self._cache: dict[str, tuple[Any, float]] = {}
+        # Ultimo valore valido per chiave: {chiave: (valore, istante, pagina)}
+        self._cache: dict[str, tuple[Any, float, str]] = {}
         # Cicli falliti consecutivi per pagina, per un logging non ripetitivo
         self._failures: dict[str, int] = {}
         # Ultimi dati giornalieri validi (info dispositivo e rinvio manutenzione)
@@ -209,15 +235,15 @@ class KalkotronicClient:
 
     async def fetch_fast_data(self) -> dict[str, Any]:
         """Pagina CaricaDatiImp: dati dell'impianto."""
-        return _parse_fast_data(await self._get_page("CaricaDatiImp"))
+        return _parse_fast_data(await self._get_page(PAGE_FAST))
 
     async def fetch_home_status(self) -> dict[str, Any]:
         """Home page: stato del sistema."""
-        return _parse_home_status(await self._get_page("Home"))
+        return _parse_home_status(await self._get_page(PAGE_HOME))
 
     async def fetch_energy_data(self) -> dict[str, Any]:
         """Pagina Consumielettrici: energia consumata."""
-        return _parse_energy_data(await self._get_page("Consumielettrici"))
+        return _parse_energy_data(await self._get_page(PAGE_ENERGY))
 
     async def fetch_daily_data(self) -> dict[str, Any]:
         """Dati giornalieri: TipoImpianto (modello, seriale, versioni) e ResAll
@@ -276,39 +302,64 @@ class KalkotronicClient:
                 )
         raise UpdateFailed("Nessun tentativo eseguito")  # non raggiungibile
 
+    def _page_due(self, page: str, now: float) -> bool:
+        """True se la pagina va riletta (mai letta o intervallo scaduto)."""
+        last = self._page_read.get(page)
+        return last is None or now - last >= self._intervals[page]
+
     async def fetch_all_fast(self) -> dict[str, Any]:
-        """Lettura combinata dei dati frequenti.
+        """Lettura dei dati frequenti a più livelli.
 
-        Le pagine vengono lette una alla volta. Se una pagina o un singolo
-        campo non arrivano, resta valido l'ultimo valore letto per al massimo
-        STALE_MAX secondi: gli errori sporadici dell'ESP non portano i sensori
-        a "sconosciuto" e non sporcano lo storico.
+        CaricaDatiImp (temperatura, allarmi, messaggio di stato) viene letta a
+        ogni ciclo. Home (System Problem) e Consumielettrici (energia) solo
+        quando il loro intervallo è scaduto, oppure, per la Home, subito dopo
+        un cambiamento di stato o degli allarmi. Le pagine vengono lette una
+        alla volta. Se una pagina o un singolo campo non arrivano, resta
+        valido l'ultimo valore letto per la tenuta prevista dalla pagina: gli
+        errori sporadici dell'ESP non portano i sensori a "sconosciuto" e non
+        sporcano lo storico.
         """
-        pages = (
-            ("CaricaDatiImp", self.fetch_fast_data),
-            ("Home", self.fetch_home_status),
-            ("Consumielettrici", self.fetch_energy_data),
-        )
+        now = time.monotonic()
+        before = {key: self._cache[key][0] for key in HOME_TRIGGERS if key in self._cache}
 
+        pages: list[tuple[str, Callable[[], Awaitable[dict[str, Any]]]]] = [
+            (PAGE_FAST, self.fetch_fast_data)
+        ]
         errors: list[str] = []
-        for name, fetch in pages:
+
+        async def read(name: str, fetch: Callable[[], Awaitable[dict[str, Any]]]) -> None:
             try:
                 values = await self._fetch_with_retry(fetch)
             except Exception as err:  # noqa: BLE001
                 errors.append(f"{name}: {err}")
                 self._note_failure(name, err)
-                continue
+                return
             self._note_success(name)
             stamp = time.monotonic()
+            self._page_read[name] = stamp
             for key, value in values.items():
                 if value is not None:
-                    self._cache[key] = (value, stamp)
+                    self._cache[key] = (value, stamp, name)
+
+        await read(*pages[0])
+
+        after = {key: self._cache[key][0] for key in HOME_TRIGGERS if key in self._cache}
+        home_due = self._page_due(PAGE_HOME, now)
+        if not home_due and after and after != before:
+            _LOGGER.debug(
+                "Stato o allarmi cambiati su %s, rileggo subito la Home", self._host
+            )
+            home_due = True
+        if home_due:
+            await read(PAGE_HOME, self.fetch_home_status)
+        if self._page_due(PAGE_ENERGY, now):
+            await read(PAGE_ENERGY, self.fetch_energy_data)
 
         now = time.monotonic()
         data = {
             key: value
-            for key, (value, stamp) in self._cache.items()
-            if now - stamp <= STALE_MAX
+            for key, (value, stamp, page) in self._cache.items()
+            if now - stamp <= self._stale[page]
         }
 
         # Nessun dato fresco né recente: le entità devono risultare non disponibili

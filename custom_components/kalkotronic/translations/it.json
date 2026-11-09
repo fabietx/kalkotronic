@@ -27,9 +27,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Recupero automatico wifi",
-        "description": "Per attivare il recupero servono SSID, password e gateway. Lascia tutto vuoto per disattivarlo.",
+        "title": "Intervalli di lettura e recupero wifi",
+        "description": "Intervalli in minuti. I dati dell'impianto (temperatura, allarmi, stato) vengono letti a ogni ciclo; la pagina Home (System Problem) e l'energia hanno intervalli propri e non vengono mai letti più spesso del ciclo base. La Home viene comunque riletta subito se cambiano stato o allarmi. Valori bassi caricano l'ESP8266 e possono causare cadute del wifi. Per il recupero wifi servono SSID, password e gateway; lascia vuoto per disattivarlo.",
         "data": {
+          "fast_interval": "Dati impianto (temperatura, allarmi, stato)",
+          "home_interval": "System Problem (pagina Home)",
+          "energy_interval": "Energia consumata",
           "wifi_ssid": "SSID wifi",
           "wifi_password": "Password wifi",
           "gateway": "Gateway",

@@ -27,9 +27,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Automatic wifi recovery",
-        "description": "SSID, password and gateway are required to enable recovery. Leave everything empty to disable it.",
+        "title": "Reading intervals and wifi recovery",
+        "description": "Intervals in minutes. Plant data (temperature, alarms, status) is read every cycle; the Home page (System Problem) and energy have their own intervals and are never read more often than the base cycle. The Home page is also re-read immediately when status or alarms change. Lower values load the ESP8266 and may cause wifi drops. Wifi recovery needs SSID, password and gateway; leave empty to disable it.",
         "data": {
+          "fast_interval": "Plant data (temperature, alarms, status)",
+          "home_interval": "System Problem (Home page)",
+          "energy_interval": "Energy consumed",
           "wifi_ssid": "Wifi SSID",
           "wifi_password": "Wifi password",
           "gateway": "Gateway",

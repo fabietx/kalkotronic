@@ -15,17 +15,29 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ENERGY_INTERVAL,
+    CONF_FAST_INTERVAL,
     CONF_GATEWAY,
+    CONF_HOME_INTERVAL,
     CONF_SUBNET,
     CONF_WIFI_PASSWORD,
     CONF_WIFI_SSID,
+    DEFAULT_ENERGY_INTERVAL,
+    DEFAULT_FAST_INTERVAL,
+    DEFAULT_HOME_INTERVAL,
     DEFAULT_SUBNET,
     DOMAIN,
+    INTERVAL_LIMITS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 WIFI_KEYS = (CONF_WIFI_SSID, CONF_WIFI_PASSWORD, CONF_GATEWAY, CONF_SUBNET)
+INTERVAL_DEFAULTS = {
+    CONF_FAST_INTERVAL: DEFAULT_FAST_INTERVAL,
+    CONF_HOME_INTERVAL: DEFAULT_HOME_INTERVAL,
+    CONF_ENERGY_INTERVAL: DEFAULT_ENERGY_INTERVAL,
+}
 
 
 def _is_ipv4(value: str) -> bool:
@@ -94,6 +106,41 @@ def _wifi_schema(defaults: dict[str, Any]) -> dict:
     }
 
 
+def _interval_schema(defaults: dict[str, Any]) -> dict:
+    """Intervalli di lettura in minuti, con i limiti di INTERVAL_LIMITS."""
+    schema = {}
+    for key, default in INTERVAL_DEFAULTS.items():
+        low, high = INTERVAL_LIMITS[key]
+        schema[vol.Optional(key, default=defaults.get(key, default))] = (
+            selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=low,
+                    max=high,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="min",
+                )
+            )
+        )
+    return schema
+
+
+def _clean_intervals(user_input: dict[str, Any]) -> dict[str, int]:
+    """Intervalli interi entro i limiti; Home ed energia mai sotto il ciclo base."""
+    values = {}
+    for key, default in INTERVAL_DEFAULTS.items():
+        low, high = INTERVAL_LIMITS[key]
+        try:
+            value = int(round(float(user_input.get(key, default))))
+        except (TypeError, ValueError):
+            value = default
+        values[key] = min(max(value, low), high)
+    fast = values[CONF_FAST_INTERVAL]
+    values[CONF_HOME_INTERVAL] = max(values[CONF_HOME_INTERVAL], fast)
+    values[CONF_ENERGY_INTERVAL] = max(values[CONF_ENERGY_INTERVAL], fast)
+    return values
+
+
 class KalkotronicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -137,7 +184,7 @@ class KalkotronicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class KalkotronicOptionsFlow(config_entries.OptionsFlow):
-    """Parametri wifi modificabili su installazioni esistenti."""
+    """Intervalli di lettura e parametri wifi modificabili su installazioni esistenti."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         errors: dict[str, str] = {}
@@ -145,13 +192,17 @@ class KalkotronicOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             wifi, errors = _clean_wifi(user_input)
             if not errors:
-                return self.async_create_entry(title="", data=wifi)
+                return self.async_create_entry(
+                    title="", data={**_clean_intervals(user_input), **wifi}
+                )
             current = user_input
         else:
             current = {**self.config_entry.data, **self.config_entry.options}
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(_wifi_schema(current)),
+            data_schema=vol.Schema(
+                {**_interval_schema(current), **_wifi_schema(current)}
+            ),
             errors=errors,
         )

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 (novembre 2026)
+
+### Carico sull'ESP8266
+- Polling a più livelli: **CaricaDatiImp** (temperatura, allarmi, messaggio di stato) resta ogni 2 minuti; **Home** (System Problem) passa a 10 minuti e **Consumielettrici** (energia) a 30 minuti. Da 90 a circa 38 richieste l'ora, con la pagina più pesante (Home) letta un sesto delle volte.
+- La Home viene comunque riletta subito se cambiano il messaggio di stato o i contatori degli allarmi, così System Problem resta reattivo sugli eventi reali.
+- Intervalli configurabili in minuti dalle opzioni dell'integrazione (*Configura*); Home ed energia non possono essere letti più spesso del ciclo base.
+- Tenuta del dato proporzionale all'intervallo della pagina (3 volte l'intervallo, minimo 10 minuti): energia e System Problem non diventano "Non disponibile" tra una lettura e l'altra.
+
+### Compatibilità
+- unique_id, nomi e unità invariati: storico e automazioni restano validi. Le installazioni esistenti usano i nuovi intervalli predefiniti senza interventi.
+
+### Test
+- Nuovi test: polling a livelli, rilettura della Home al cambio di stato, intervalli da opzioni.
+
 ## 0.6.0 (novembre 2026)
 
 ### Allarme manutenzione

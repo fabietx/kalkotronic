@@ -1,4 +1,4 @@
-# Kalko Tronic Integration v0.6
+# Kalko Tronic Integration v0.7
 
 Integrazione custom per Home Assistant che monitora un addolcitore d'acqua Kalkotronic tramite il webserver ESP8266 integrato (scraping delle pagine locali, nessun cloud).
 
@@ -11,9 +11,18 @@ Integrazione custom per Home Assistant che monitora un addolcitore d'acqua Kalko
 - **Recupero automatico del wifi**: se l'ESP torna alla pagina di configurazione, l'integrazione reinvia SSID, password, IP e gateway impostati in *Configura*.
 
 ## Aggiornamento dei dati
-- Dati dell'impianto: ogni 2 minuti, leggendo le pagine una alla volta.
-- Modello, seriale, versioni e giorni alla riattivazione dell'allarme manutenzione: ogni notte alle 00:01 e dopo ogni pressione del pulsante di rinvio; se una pagina non risponde, nuovo tentativo dopo 30 minuti mantenendo gli ultimi valori validi.
-- In caso di errore sporadico dell'ESP i sensori mantengono l'ultimo valore valido per massimo 10 minuti; oltre, diventano "Non disponibile".
+Il webserver dell'ESP8266 è il punto debole dell'impianto: troppe richieste lo portano a riavviarsi e a perdere il wifi. Per questo le pagine sono lette a intervalli diversi, una alla volta e con almeno 2 secondi di pausa.
+
+| Pagina | Dati | Intervallo predefinito |
+|---|---|---|
+| CaricaDatiImp | temperatura, allarmi temperatura e fusibile, messaggio di stato, efficienza, giorni di lavoro, giorni alla manutenzione, ritardo manutenzione | 2 minuti |
+| Home | System Problem | 10 minuti, più una rilettura immediata se cambiano messaggio di stato o contatori allarmi |
+| Consumielettrici | energia consumata | 30 minuti |
+| TipoImpianto, ResAll | modello, seriale, versioni, giorni alla riattivazione dell'allarme manutenzione | ogni notte alle 00:01 e dopo ogni rinvio; se una pagina non risponde, nuovo tentativo dopo 30 minuti |
+
+Con i valori predefiniti si passa da 90 a circa 38 richieste l'ora rispetto alla v0.6. Gli intervalli si regolano da *Impostazioni > Dispositivi e servizi > Kalkotronic > Configura*: Home ed energia non vengono mai letti più spesso del ciclo base.
+
+In caso di errore sporadico dell'ESP ogni sensore mantiene l'ultimo valore valido per tre volte l'intervallo della sua pagina (minimo 10 minuti); oltre, diventa "Non disponibile".
 
 ## Sincronizzazione dell'orario
 Il dispositivo non supporta NTP. Il servizio `kalkotronic.update_datetime` invia data e ora di Home Assistant con lo stesso formato del pulsante *Invia* della pagina di diagnostica (`gg.mm.aaaa hh:mm`). Esempio di automazione giornaliera:

@@ -16,18 +16,22 @@ from .const import (
     DAILY_REFRESH_MINUTE,
     DAILY_RETRY,
     DOMAIN,
-    UPDATE_FAST,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class KalkotronicCoordinators:
-    """Coordinator "fast" (ogni UPDATE_FAST secondi) e "daily" (alle 00:01 e
-    dopo ogni rinvio dell'allarme manutenzione)."""
+    """Coordinator "fast" (ogni fast_interval secondi; al suo interno le pagine
+    Home ed energia hanno intervalli propri) e "daily" (alle 00:01 e dopo ogni
+    rinvio dell'allarme manutenzione)."""
 
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, client: KalkotronicClient
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        client: KalkotronicClient,
+        fast_interval: int,
     ) -> None:
         self._hass = hass
         self._client = client
@@ -39,7 +43,7 @@ class KalkotronicCoordinators:
             config_entry=entry,
             name=f"{DOMAIN}_fast",
             update_method=client.fetch_all_fast,
-            update_interval=timedelta(seconds=UPDATE_FAST),
+            update_interval=timedelta(seconds=fast_interval),
             # Le entità vengono riscritte solo se i dati cambiano
             always_update=False,
         )

@@ -13,10 +13,16 @@ from homeassistant.helpers.typing import ConfigType
 from . import services
 from .client import KalkotronicClient
 from .const import (
+    CONF_ENERGY_INTERVAL,
+    CONF_FAST_INTERVAL,
     CONF_GATEWAY,
+    CONF_HOME_INTERVAL,
     CONF_SUBNET,
     CONF_WIFI_PASSWORD,
     CONF_WIFI_SSID,
+    DEFAULT_ENERGY_INTERVAL,
+    DEFAULT_FAST_INTERVAL,
+    DEFAULT_HOME_INTERVAL,
     DOMAIN,
     MANUFACTURER,
 )
@@ -43,14 +49,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     conf = {**entry.data, **entry.options}
     host = conf[CONF_HOST]
+    # Intervalli in minuti nelle opzioni, in secondi per client e coordinator
+    fast = int(conf.get(CONF_FAST_INTERVAL, DEFAULT_FAST_INTERVAL)) * 60
+    home = int(conf.get(CONF_HOME_INTERVAL, DEFAULT_HOME_INTERVAL)) * 60
+    energy = int(conf.get(CONF_ENERGY_INTERVAL, DEFAULT_ENERGY_INTERVAL)) * 60
     client = KalkotronicClient(
         host,
         wifi_ssid=conf.get(CONF_WIFI_SSID),
         wifi_password=conf.get(CONF_WIFI_PASSWORD),
         gateway=conf.get(CONF_GATEWAY),
         subnet=conf.get(CONF_SUBNET),
+        fast_interval=fast,
+        home_interval=home,
+        energy_interval=energy,
     )
-    coordinators = KalkotronicCoordinators(hass, entry, client)
+    coordinators = KalkotronicCoordinators(hass, entry, client, fast)
 
     try:
         await coordinators.async_setup()
@@ -89,7 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _async_update_device()
     entry.async_on_unload(coordinators.daily.async_add_listener(_async_update_device))
 
-    # Ricarica l'integrazione quando cambiano le opzioni (parametri wifi)
+    # Ricarica l'integrazione quando cambiano le opzioni (wifi, intervalli)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

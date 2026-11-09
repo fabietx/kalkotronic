@@ -134,6 +134,57 @@ async def test_giornaliero_parziale_mantiene_e_ritenta(hass, esp):
     assert dev.sw_version == "3.3"
 
 
+def _pages(esp, since=0):
+    return [c.split("pin=")[-1] for c in esp.calls[since:] if "pin=" in c]
+
+
+async def test_polling_a_livelli(hass, esp):
+    """CaricaDatiImp a ogni ciclo; Home ed energia solo a intervallo scaduto."""
+    await _setup(hass)
+    assert {"CaricaDatiImp", "Home", "Consumielettrici"} <= set(_pages(esp))
+    n = len(esp.calls)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=130))
+    await hass.async_block_till_done()
+    assert _pages(esp, n) == ["CaricaDatiImp"]
+    # Energia e System Problem restano disponibili oltre i 10 minuti
+    assert _state(hass, "sensor", "energy").state == "12.5"
+    assert _state(hass, "binary_sensor", "system_problem").state == "off"
+
+
+async def test_home_riletta_se_cambia_lo_stato(hass, esp):
+    await _setup(hass)
+    n = len(esp.calls)
+    PAGES["CaricaDatiImp"] = PAGES["CaricaDatiImp"].replace("Tutto OK", "ALLARME")
+    PAGES["Home"] = PAGES["Home"].replace("#00FF00", "#FF0000")
+    try:
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=130))
+        await hass.async_block_till_done()
+    finally:
+        PAGES["CaricaDatiImp"] = PAGES["CaricaDatiImp"].replace("ALLARME", "Tutto OK")
+        PAGES["Home"] = PAGES["Home"].replace("#FF0000", "#00FF00")
+    assert _pages(esp, n) == ["CaricaDatiImp", "Home"]
+    assert _state(hass, "sensor", "status_message").state == "ALLARME"
+    assert _state(hass, "binary_sensor", "system_problem").state == "on"
+
+
+async def test_intervalli_da_opzioni(hass, esp):
+    """Con home_interval = fast_interval la Home si legge a ogni ciclo."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=HOST, data={"host": HOST},
+                            options={"fast_interval": 1, "home_interval": 1,
+                                     "energy_interval": 5})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    n = len(esp.calls)
+    # Gli intervalli delle pagine si misurano con time.monotonic: lo faccio avanzare
+    import time as real_time
+    with patch("custom_components.kalkotronic.client.time.monotonic",
+               return_value=real_time.monotonic() + 70):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=70))
+        await hass.async_block_till_done()
+    assert _pages(esp, n) == ["CaricaDatiImp", "Home"]
+
+
 async def test_setup_ok_senza_tipoimpianto(hass, esp):
     esp.fail = {"TipoImpianto"}
     entry = await _setup(hass)
@@ -197,7 +248,10 @@ async def test_options_flow(hass, esp):
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"gateway": "abc"})
     assert r["errors"] == {"gateway": "invalid_gateway"}
     r = await hass.config_entries.options.async_configure(r["flow_id"], {
-        "wifi_ssid": "casa", "wifi_password": "pw", "gateway": "192.168.1.1"})
+        "wifi_ssid": "casa", "wifi_password": "pw", "gateway": "192.168.1.1",
+        "fast_interval": 5, "home_interval": 3, "energy_interval": 60})
     assert r["type"] == "create_entry"
+    # La Home non può essere letta più spesso del ciclo base
+    assert (r["data"]["fast_interval"], r["data"]["home_interval"]) == (5, 5)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
